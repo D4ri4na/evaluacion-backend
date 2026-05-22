@@ -18,6 +18,8 @@ Elegimos trabajar con el dominio de **Venta de Entradas para Conciertos y Evento
 
 ## 🏛 Arquitectura C4
 
+![Diagrama C4](imagenes/diagrama1.png)
+
 ### ¿Cómo organizamos la base de datos?
 
 * **Lugares y Eventos separados:** El lugar del evento (`Venue`) está separado del evento en sí (`Event`). Así no repetimos la misma dirección cien veces y las búsquedas son más rápidas.
