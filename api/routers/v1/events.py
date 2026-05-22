@@ -17,7 +17,6 @@ def get_event_service(
 ) -> EventService:
     return EventService(repository, cache)
 
-# Conectamos el Schema de Pydantic al response_model
 @router.get("/events/", response_model=PaginatedEventsSchema, dependencies=[Depends(rate_limiter)])
 def list_events(
     q: Optional[str] = None,
@@ -26,6 +25,15 @@ def list_events(
     service: EventService = Depends(get_event_service)
 ):
     return service.list_all_events(search_query=q, page=page, page_size=page_size)
+
+@router.get("/events/search/", response_model=PaginatedEventsSchema, dependencies=[Depends(rate_limiter)])
+def search_events(
+    query: str, 
+    page: int = 1, 
+    page_size: int = 9, 
+    service: EventService = Depends(get_event_service)
+):
+    return service.list_all_events(search_query=query, page=page, page_size=page_size)
 
 @router.get("/events/{event_id}", response_model=EventDetailSchema, dependencies=[Depends(rate_limiter)])
 def get_event_detail(

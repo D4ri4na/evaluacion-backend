@@ -8,13 +8,11 @@ class EventService:
         self.cache = cache
 
     def list_all_events(self, search_query: str = None, page: int = 1, page_size: int = 9):
-        # 1. Intentar obtener de Caché
         cache_key = f"events:q={search_query}:p={page}:s={page_size}"
         cached_data = self.cache.get_value(cache_key)
         if cached_data:
             return json.loads(cached_data)
 
-        # 2. Si no hay caché, buscar en Repositorio (PostgreSQL)
         raw_events = self.repository.get_all_events(search_query)
         if not raw_events:
             return {"count": 0, "page": page, "results": []}
@@ -36,7 +34,6 @@ class EventService:
             
             results.append(event)
             
-        # Paginación a nivel de lógica de negocio
         total_count = len(results)
         start = (page - 1) * page_size
         end = start + page_size
@@ -48,7 +45,6 @@ class EventService:
             "results": paginated_results
         }
         
-        # 3. Guardar en Caché por 30 segundos
         self.cache.set_value(cache_key, json.dumps(final_response), 30)
         return final_response
 

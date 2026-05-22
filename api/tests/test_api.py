@@ -26,12 +26,15 @@ def test_event_not_found():
     assert response.status_code == 404
 
 def test_rate_limiter_blocks_bots():
-    """Simula un ataque de bot haciendo peticiones rápidas a los eventos para verificar el bloqueo (429)."""
-    # El límite configurado en rate_limiter.py es de 20 por minuto
+    """Simula un ataque de bot haciendo peticiones rápidas a los eventos para verificar el bloqueo (429)"""
     for _ in range(20):
         client.get("/v1/events/")
         
-    # La petición número 21 debería ser bloqueada por Redis
     response = client.get("/v1/events/")
     assert response.status_code == 429
     assert "Retry-After" in response.headers
+
+def test_search_endpoint():
+    response = client.get("/v1/events/search/?query=NASA")
+    assert response.status_code == 200
+    assert "results" in response.json()

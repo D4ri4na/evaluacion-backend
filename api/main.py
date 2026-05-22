@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import get_db_connection
 from routers.v1.events import router as events_router
 
-# root_path="/api" le dice a FastAPI que Nginx está manejando ese prefijo
 app = FastAPI(
     title="Tickets API",
     openapi_url="/openapi.json",
@@ -18,7 +17,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Aquí conectamos tus nuevas rutas de eventos
 app.include_router(events_router, prefix="/v1")
 
 @app.get("/v1/healthz")

@@ -6,11 +6,11 @@
 
 Todo el proyecto se levanta con un solo comando gracias a Docker. Usamos 5 piezas clave que trabajan en equipo:
 
-1. **Nginx:** Es nuestro guardia de tráfico. Recibe todas las peticiones y decide a dónde enviarlas (el panel admin, la API o el frontend).
-2. **PostgreSQL:** Nuestra base de datos principal donde guardamos todos los eventos y entradas.
-3. **Redis:** Una memoria súper rápida que usamos para dos cosas: bloquear bots y guardar datos temporalmente (caché) para responder más rápido.
-4. **Django (Admin):** Lo usamos exclusivamente como un panel de administración visual y fácil de usar para gestionar los eventos.
-5. **FastAPI:** El corazón del proyecto. Una API súper rápida que se comunica con el frontend para mostrar los eventos y procesar las cosas.
+1. **Nginx:** Es nuestro proxy inverso. Recibe todas las peticiones y decide a dónde enviarlas. Además, sirve los archivos estáticos directamente para mayor rendimiento.
+2. **PostgreSQL:** Nuestra base de datos principal aislada en el esquema `content`.
+3. **Redis:** Memoria de ultra alta velocidad usada para bloquear bots y guardar datos temporalmente (caché).
+4. **Django (Admin):** Backoffice servido en producción mediante **Gunicorn (WSGI)**. Lo usamos exclusivamente como panel de administración visual.
+5. **FastAPI:** El corazón del proyecto servido con **Uvicorn**. Una API asíncrona que se comunica con el frontend para mostrar los eventos.
 
 ## 📊 Modelo de Datos (Opción A)
 
@@ -22,9 +22,9 @@ Elegimos trabajar con el dominio de **Venta de Entradas para Conciertos y Evento
 
 ### ¿Cómo organizamos la base de datos?
 
-* **Lugares y Eventos separados:** El lugar del evento (`Venue`) está separado del evento en sí (`Event`). Así no repetimos la misma dirección cien veces y las búsquedas son más rápidas.
-* **Entradas inteligentes:** Creamos un modelo `TicketTier` (ej. General, VIP) que controla cuántas entradas hay en total y cuántas quedan disponibles en tiempo real.
-* **UUIDs:** En lugar de usar IDs normales (1, 2, 3...), usamos códigos únicos largos (UUID). Esto hace que el sistema sea más seguro y difícil de predecir.
+* **Lugares y Eventos separados:** El lugar del evento (`Venue`) está separado del evento en sí (`Event`). Así no repetimos la misma dirección cien veces.
+* **Entradas inteligentes:** Creamos un modelo `TicketTier` que controla la capacidad total y el inventario disponible en tiempo real.
+* **UUIDs:** Todas las claves primarias utilizan códigos únicos universales (UUID) por seguridad.
 
 ## 🗄 Modelo de Base de Datos (Diagrama ER)
 
@@ -32,48 +32,50 @@ Elegimos trabajar con el dominio de **Venta de Entradas para Conciertos y Evento
 
 ## 🛠 Buenas Prácticas y Código Limpio (SOLID)
 
-En la parte de FastAPI nos aseguramos de no mezclar todo el código en un solo archivo. Aplicamos principios de diseño para mantenerlo limpio:
+* **SRP:** Las rutas solo reciben peticiones, los servicios manejan la lógica.
+* **Patrón Repositorio:** Sacamos todas las consultas SQL y las aislamos en clases concretas (`PostgresEventRepository`).
+* **Inyección de Dependencias:** Usamos `Depends` en FastAPI para inyectar repositorios y cachés mediante protocolos (DIP).
+* **Pydantic:** Usamos esquemas estrictos para el contrato de salida JSON.
 
-* **Cada cosa en su lugar (SRP):** Las rutas solo reciben peticiones, y los servicios manejan la lógica. No mezclamos cosas.
-* **Patrón Repositorio:** Sacamos todas las consultas de la base de datos (SQL) y las pusimos en su propia capa.
-* **Inyección de Dependencias:** Usamos `Depends` en FastAPI para conectar nuestras diferentes partes (como la base de datos o el caché) sin "amarrar" el código.
-* **Pydantic:** Usamos esquemas para asegurarnos de que los datos que entran y salen tienen el formato exacto que necesitamos, ni más ni menos.
+## 💾 Seed de Datos Automático
 
-## 💾 Creación de Datos de Prueba (Seed)
+Para pruebas de estrés, preparamos un script (`seed_data.py`) que usa `bulk_create`.
+* Genera **300 eventos** y **150,000 reservas** en segundos.
+* **Se ejecuta automáticamente** en el primer arranque del contenedor gracias al script del Dockerfile, por lo que el evaluador no necesita hacer nada manual.
 
-Para no tener que registrar eventos a mano, creamos un script (`seed_data.py`).
-
-* En lugar de guardar los datos uno por uno (lo cual tomaría horas), usamos `bulk_create` para guardar todo de golpe.
-* Con un solo comando generamos **300 eventos** y **150,000 reservas**, dejando el sistema listo para hacer pruebas de carga.
-
-## 🛡 Lógica y Seguridad
+## 🛡 Lógica de Negocio y Seguridad
 
 ### Evitando sobreventas (Race Conditions)
+En un sistema de tickets, dos personas pueden intentar comprar el último asiento al mismo tiempo. **¿Cómo lo manejamos?** Lo resolvimos a nivel de base de datos aplicando un `CHECK constraint` en el DDL (`CHECK (available_quantity >= 0)`). Si una transacción intenta bajar el inventario a números negativos, PostgreSQL aborta la operación de forma segura.
 
-¿Qué pasa si dos personas intentan comprar la última entrada al mismo tiempo? Lo resolvimos directamente en la base de datos poniendo una regla (`CHECK constraint`) que prohíbe que el número de entradas disponibles baje de cero. Si pasa, la base de datos bloquea la segunda compra.
-
-### Caché a prueba de fallos
-
-Guardamos las respuestas de la API en Redis por 30 segundos para que todo cargue al instante. Pero si Redis se llega a caer o fallar, la API no se muere; simplemente se da cuenta y va a buscar los datos directo a PostgreSQL.
+### Caché y Degradación Grácil (Graceful Degradation)
+Guardamos las respuestas de la API en Redis por 30 segundos. Si Redis se llega a caer, la API **no se rompe**; el bloque `try/except` atrapa el error y la API va a buscar los datos directamente a PostgreSQL para mantenerse viva.
 
 ### Bloqueo de Bots (Rate Limiting)
+Se implementó un middleware inyectable conectado a Redis. Si alguien hace más de 20 peticiones por minuto, le bloqueamos el acceso devolviendo un `429 Too Many Requests`.
 
-Para evitar ataques o bots, configuramos Redis para que cuente cuántas veces entra una IP. Si alguien hace más de 20 peticiones por minuto, le bloqueamos el acceso y le mandamos un error `429 Too Many Requests`.
+## 🌍 Zonas Horarias y Hardening
 
-## 🌍 Zonas Horarias y Seguridad Extra
-
-* **Fechas:** Guardamos todas las fechas en formato universal (UTC) y nos aseguramos de que el sistema sepa exactamente qué zona horaria usar al devolver los datos, evitando desfases.
-* **Nginx:** Apagamos la opción que muestra la versión de Nginx (`server_tokens off;`). Así, si alguien intenta buscar vulnerabilidades en nuestro servidor, no sabrá qué versión exacta estamos usando.
+* **Fechas:** Guardamos todas las fechas en UTC y usamos `make_aware` de Django para mantener la consistencia (*timezone-aware*).
+* **Nginx:** Ocultamos la versión del servidor (`server_tokens off;`) para evitar escaneos de vulnerabilidades.
 
 ## 🧪 Pruebas Automatizadas
 
-Escribimos tests con `pytest` para asegurarnos de que no rompemos nada por accidente. Las pruebas verifican:
+Para garantizar la estabilidad del sistema y cumplir con los estándares de calidad, se implementaron dos suites de pruebas automatizadas (una por cada servicio) alcanzando un total de 10 pruebas exitosas.
 
-* Que la API esté viva.
-* Que los eventos se devuelvan en el formato correcto y con la paginación bien hecha.
-* Que el sistema devuelva un error 404 si buscas un evento que no existe.
-* Que nuestro escudo anti-bots realmente bloquee a quien haga demasiadas peticiones.
+**Pruebas de la API Pública (FastAPI - `pytest`):**
+* **`test_healthz_endpoint`:** Valida la disponibilidad del servicio y comprueba que la conexión con PostgreSQL esté activa.
+* **`test_list_events_pagination`:** Asegura que los parámetros de paginación devuelvan la estructura de datos JSON exacta exigida por el contrato del frontend.
+* **`test_event_not_found`:** Verifica el manejo seguro de errores devolviendo un HTTP 404 ante identificadores UUID inexistentes.
+* **`test_rate_limiter_blocks_bots`:** Simula ráfagas rápidas de tráfico para corroborar la activación del bloqueo HTTP 429 (Too Many Requests) por parte de Redis.
+* **`test_search_endpoint`:** Confirma que el motor de búsqueda por texto (`?query=`) filtre de forma precisa los eventos en la base de datos.
 
+**Pruebas del Backoffice (Django - `TestCase`):**
+* **`test_healthz_endpoint`:** Verifica que el servidor WSGI responda correctamente a las solicitudes de monitoreo de estado.
+* **`test_venue_creation`:** Prueba a nivel de ORM que la inserción de datos relacionales funcione y los modelos apliquen sus representaciones de texto correctamente.
+* **`test_admin_login_page_loads`:** Comprueba que la interfaz gráfica de seguridad y login del panel se rendericen con un HTTP 200 sin errores internos.
+* **`test_database_is_reachable`:** Verifica activamente que el entorno de testing pueda realizar operaciones de lectura/escritura en PostgreSQL.
+* **`test_models_exist`:** Prueba de sanidad estructural que valida la importación y vinculación sin errores de todos los modelos del dominio (`Event`, `TicketTier`, `Reservation`).
 ---
 
 ## 🚀 Cómo ejecutar el proyecto
@@ -84,6 +86,8 @@ cp .env.example .env
 
 ```
 
+*(El archivo de ejemplo ya contiene las credenciales necesarias para levantar todo).*
+
 **2. Levantar los contenedores:**
 
 ```bash
@@ -91,14 +95,14 @@ docker-compose up -d --build
 
 ```
 
-*(Espera unos 30 segundos para que la base de datos inicie por completo).*
+*(El sistema migrará, creará el superusuario y poblará la base de datos automáticamente. ¡Dale unos 20-30 segundos para que termine!)*
 
-**3. Poblar la base de datos (Seed):**
+**3. Enlaces de acceso rápido:**
 
-```bash
-docker exec -it django_admin python manage.py seed_data
-
-```
+* 🎟️ **Frontend:** [http://localhost/](https://www.google.com/search?q=http://localhost/)
+* ⚙️ **Panel Admin:** [http://localhost/admin/](https://www.google.com/search?q=http://localhost/admin/) *(User: `admin` | Pass: `admin123`)*
+* 📡 **API (Búsqueda):** [http://localhost/api/v1/events/search/?query=NASA](https://www.google.com/search?q=http://localhost/api/v1/events/search/%3Fquery%3DNASA)
+* 📖 **Docs API:** [http://localhost/api/openapi.json](https://www.google.com/search?q=http://localhost/api/openapi.json)
 
 **4. Ejecutar pruebas automatizadas:**
 
@@ -107,25 +111,22 @@ docker exec -it fastapi_backend pytest tests/
 
 ```
 
-**5. Enlaces de acceso rápido:**
-
-* 🎟️ **Frontend:** [http://localhost/](https://www.google.com/search?q=http://localhost/)
-* ⚙️ **Panel Admin:** [http://localhost/admin/](https://www.google.com/search?q=http://localhost/admin/) *(User: `admin` | Pass: `admin123`)*
-* 📡 **API Pública:** [http://localhost/api/v1/events/](https://www.google.com/search?q=http://localhost/api/v1/events/)
-* 📖 **Docs API (Swagger):** [http://localhost/api/openapi.json](https://www.google.com/search?q=http://localhost/api/openapi.json)
-
-**6. Detener el proyecto:**
+**5. Detener el proyecto:**
 
 ```bash
-docker-compose down
+docker-compose down -v
 
 ```
+
 ---
 
-## 📝 Retrospectiva del Proyecto
+## 📝 Retrospectiva y Decisiones de Diseño
+
+**Mis Trade-offs (Compromisos de Diseño):**
+Decidí usar un script de carga masiva (`bulk_create`) en Django en lugar de insertar uno por uno para que el despliegue fuera rápido. El *trade-off* es que este método salta el método `.save()` de los modelos de Django, por lo que no se ejecutarían "señales" (signals) si existieran, pero ganamos una velocidad de inicialización brutal.
 
 **De lo que me siento más orgullosa:**
-Me enorgullece muchísimo haber logrado que el panel de administración funcione correctamente. Anteriormente pasé semanas intentando hacer tareas similares sin éxito, así que ver que esta vez, a pesar de todos los errores que cometí en el proceso, logré sacarlo adelante y hacerlo funcionar, es un gran logro personal para mí.
+Me enorgullece muchísimo haber logrado que el panel de administración funcione correctamente y esté integrado en la misma red de contenedores con FastAPI y Nginx. Anteriormente pasé semanas intentando hacer tareas similares de despliegue sin éxito, así que ver que esta vez logré sacarlo adelante y hacerlo funcionar con Gunicorn es un gran logro personal.
 
-**De lo que me siento menos conforme:**
-Definitivamente, de la cantidad de errores que fui cometiendo a lo largo del desarrollo. Muchas veces lograba que una parte del código funcionara, y al intentar mejorar o tocar otra cosa, lo anterior dejaba de dar el resultado esperado. Es un proceso frustrante, pero entiendo que es parte del aprendizaje.
+**Lo que menos me gustó y haría diferente con más tiempo:**
+La paginación actual de la API en el servicio toma los resultados y hace el rebanado (slicing) en memoria. Aunque funciona perfecto para 300 eventos, si tuviéramos 5 millones de eventos, consumiría demasiada RAM. Si tuviera más tiempo, implementaría la paginación a nivel de SQL directo en el Repositorio usando `LIMIT` y `OFFSET`. Además, la frustración por los errores constantes me demostró que cambiar una cosa pequeña (como un archivo wsgi) puede romper todo el flujo si no se tiene cuidado.

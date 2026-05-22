@@ -7,16 +7,12 @@ class Command(BaseCommand):
     help = 'Limpia la base de datos y genera >300 recursos principales y >500 hijos para pruebas de estrés'
 
     def handle(self, *args, **options):
-        self.stdout.write('Limpiando registros antiguos...')
-        Reservation.objects.all().delete()
-        TicketTier.objects.all().delete()
-        Event.objects.all().delete()
-        Venue.objects.all().delete()
+        if Event.objects.exists():
+            self.stdout.write('La base de datos ya está poblada. Omitiendo seed.')
+            return
 
-        # 1. Creamos el Venue
         ucb_venue = Venue.objects.create(name="UCB - Santa Cruz", city="Santa Cruz")
 
-        # 2. Creamos los 2 eventos específicos del Frontend
         self.stdout.write('Creando 300 Eventos (Main Resources)...')
         events_to_create = [
             Event(
@@ -33,7 +29,6 @@ class Command(BaseCommand):
             )
         ]
 
-        # Agregamos 298 eventos genéricos para cumplir los 300 exigidos
         base_date = make_aware(datetime(2026, 8, 1, 20, 0))
         for i in range(298):
             events_to_create.append(Event(
@@ -43,11 +38,9 @@ class Command(BaseCommand):
                 description="Stress test event"
             ))
         
-        # BULK CREATE para Eventos (Ultra rápido)
         Event.objects.bulk_create(events_to_create)
         all_events = list(Event.objects.all())
 
-        # 3. Creamos 1 TicketTier para cada uno de los 300 eventos
         self.stdout.write('Asignando categorías de entrada a los eventos...')
         tiers_to_create = []
         for ev in all_events:
@@ -61,10 +54,9 @@ class Command(BaseCommand):
         TicketTier.objects.bulk_create(tiers_to_create)
         all_tiers = list(TicketTier.objects.all())
 
-        # 4. Creamos 500 Reservas (Hijos) por cada uno de los 300 eventos = 150,000 registros
         self.stdout.write('Generando 500 reservas por evento (Total: 150,000 registros). Esto tomará unos segundos...')
         reservations_to_create = []
-        batch_size = 10000  # Evita que la RAM colapse insertando de a 10,000
+        batch_size = 10000  
 
         for tier in all_tiers:
             for j in range(500):
@@ -76,12 +68,10 @@ class Command(BaseCommand):
                     status='confirmed'
                 ))
             
-            # Si acumulamos muchos, hacemos la inserción por lote y vaciamos la lista
             if len(reservations_to_create) >= batch_size:
                 Reservation.objects.bulk_create(reservations_to_create)
                 reservations_to_create = []
 
-        # Insertar los restantes
         if reservations_to_create:
             Reservation.objects.bulk_create(reservations_to_create)
 

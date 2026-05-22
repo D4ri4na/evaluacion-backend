@@ -24,7 +24,7 @@ CREATE TABLE content.ticket_tier (
     name VARCHAR(50) NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
     total_capacity INT NOT NULL,
-    available_quantity INT NOT NULL,
+    available_quantity INT NOT NULL CHECK (available_quantity >= 0), 
     created TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     modified TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (event_id, name)

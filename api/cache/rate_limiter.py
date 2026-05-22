@@ -18,7 +18,7 @@ class RedisCache:
         try:
             return self.client.incr(key)
         except Exception:
-            return 1 # Degradación grácil: Si Redis cae, permite pasar el tráfico
+            return 1 
 
     def set_expire(self, key: str, seconds: int) -> None:
         try:
@@ -30,7 +30,7 @@ class RedisCache:
         try:
             return self.client.get(key)
         except Exception:
-            return None # Si Redis cae, obligamos a leer de la Base de Datos
+            return None 
 
     def set_value(self, key: str, value: str, seconds: int) -> None:
         try:

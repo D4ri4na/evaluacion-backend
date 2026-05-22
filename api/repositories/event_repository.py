@@ -22,7 +22,6 @@ class PostgresEventRepository:
             """
             params = []
             
-            # Lógica de búsqueda SQL (Search)
             if search_query:
                 query += " WHERE e.title ILIKE %s OR e.description ILIKE %s OR v.name ILIKE %s"
                 term = f"%{search_query}%"
