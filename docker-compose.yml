@@ -27,6 +27,8 @@ services:
     ports: []
     volumes:
       - ./admin_panel:/app
+    env_file:
+      - .env
     environment:
       - DJANGO_SETTINGS_MODULE=settings
     depends_on:
@@ -39,6 +41,8 @@ services:
     ports: []
     volumes:
       - ./api:/app
+    env_file:
+      - .env
     depends_on:
       - db
       - redis

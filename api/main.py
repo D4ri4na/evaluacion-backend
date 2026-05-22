@@ -3,9 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+import time
 
-password = os.getenv("POSTGRES_PASSWORD")
-app = FastAPI(title="Tickets API")
+# Configuramos FastAPI para que entienda que Nginx le pasa el tráfico desde /api
+app = FastAPI(
+    title="Tickets API",
+    openapi_url="/openapi.json",
+    root_path="/api" 
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,17 +21,21 @@ app.add_middleware(
 )
 
 def get_db_connection():
-    try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "db"),
-            database=os.getenv("POSTGRES_DB", "tickets_database"),
-            user=os.getenv("POSTGRES_USER", "app"),
-            password=os.getenv("POSTGRES_PASSWORD") # Esta variable ya la definiste arriba
-        )
-        return conn
-    except Exception as e:
-        print(f"Error conectando a la base de datos: {e}")
-        return None
+    max_retries = 5
+    while max_retries > 0:
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "db"),
+                database=os.getenv("POSTGRES_DB", "tickets_database"),
+                user=os.getenv("POSTGRES_USER", "app"),
+                password=os.getenv("POSTGRES_PASSWORD")
+            )
+            return conn
+        except Exception as e:
+            max_retries -= 1
+            print(f"Reintentando conexión... ({max_retries} intentos restantes)")
+            time.sleep(2) # Espera inteligente
+    return None
 
 @app.get("/v1/healthz")
 def health_check():
@@ -62,7 +71,6 @@ def fetch_shows_from_database():
         if event['starts_at']:
             event['starts_at'] = event['starts_at'].isoformat()
             
-        # Reestructuramos el objeto venue tal como lo pide tu app.js
         event['venue'] = {
             "name": event.pop('venue_name'),
             "city": event.pop('venue_city')
