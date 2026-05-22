@@ -27,10 +27,12 @@ def test_event_not_found():
 
 def test_rate_limiter_blocks_bots():
     """Simula un ataque de bot haciendo peticiones rápidas a los eventos para verificar el bloqueo (429)"""
+    fake_ip_header = {"X-Real-IP": "123.45.67.89"}
+    
     for _ in range(20):
-        client.get("/v1/events/")
+        client.get("/v1/events/", headers=fake_ip_header)
         
-    response = client.get("/v1/events/")
+    response = client.get("/v1/events/", headers=fake_ip_header)
     assert response.status_code == 429
     assert "Retry-After" in response.headers
 

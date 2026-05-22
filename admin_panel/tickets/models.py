@@ -1,5 +1,13 @@
 import uuid
 from django.db import models
+from django.db.models.signals import pre_migrate
+from django.dispatch import receiver
+from django.db import connection
+
+@receiver(pre_migrate)
+def setup_test_schema(sender, **kwargs):
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS content;")
 
 class Venue(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -107,7 +107,7 @@ docker-compose up -d --build
 **4. Ejecutar pruebas automatizadas:**
 
 ```bash
-docker exec -it fastapi_backend pytest tests/
+docker exec -it fastapi_backend pytest tests/ && docker exec -it django_admin python manage.py test
 
 ```
 
