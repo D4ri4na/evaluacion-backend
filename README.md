@@ -122,8 +122,8 @@ docker-compose down -v
 
 ## 📝 Retrospectiva y Decisiones de Diseño
 
-**Mis Trade-offs (Compromisos de Diseño):**
-Decidí usar un script de carga masiva (`bulk_create`) en Django en lugar de insertar uno por uno para que el despliegue fuera rápido. El *trade-off* es que este método salta el método `.save()` de los modelos de Django, por lo que no se ejecutarían "señales" (signals) si existieran, pero ganamos una velocidad de inicialización brutal.
+**Cosas que hubiera hecho diferente si tenia mas tiempo:**
+Me ubiera dado mas tiempo al inicio al mommento de diseñar la base de datos ya que tuve que ir cambiandola cada cierto tiempo al darme cuenta que no lo habia pensado bien, tambien me hubiera tomado mas tiempo investigando el como hacer un diagrama c4.
 
 **De lo que me siento más orgullosa:**
 Me enorgullece muchísimo haber logrado que el panel de administración funcione correctamente y esté integrado en la misma red de contenedores con FastAPI y Nginx. Anteriormente pasé semanas intentando hacer tareas similares de despliegue sin éxito, así que ver que esta vez logré sacarlo adelante y hacerlo funcionar con Gunicorn es un gran logro personal.
