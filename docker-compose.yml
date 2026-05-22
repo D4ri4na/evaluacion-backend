@@ -27,6 +27,7 @@ services:
     ports: []
     volumes:
       - ./admin_panel:/app
+      - static_volume:/app/static  # NUEVO: Compartimos los estáticos
     env_file:
       - .env
     environment:
@@ -56,9 +57,11 @@ services:
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_volume:/app/static:ro # NUEVO: Nginx lee los estáticos directamente
     depends_on:
       - api
       - admin
 
 volumes:
   postgres_data:
+  static_volume: 
