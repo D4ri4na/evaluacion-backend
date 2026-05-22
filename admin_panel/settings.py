@@ -3,9 +3,9 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
-SECRET_KEY = 'django-insecure-evaluacion-backend-key-super-secret'
-DEBUG = True
-ALLOWED_HOSTS = ['*']
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key')
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -29,9 +29,12 @@ ROOT_URLCONF = 'urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',  
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -42,13 +45,14 @@ TEMPLATES = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'tickets_database',
-        'USER': 'app',
-        'PASSWORD': '123qwe',
-        'HOST': 'db',
+        'NAME': os.getenv('POSTGRES_DB', 'tickets_database'),
+        'USER': os.getenv('POSTGRES_USER', 'app'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', '123qwe'),
+        'HOST': os.getenv('DB_HOST', 'db'),
         'PORT': '5432',
     }
 }
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = '/app/static'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

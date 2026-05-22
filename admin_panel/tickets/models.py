@@ -1,11 +1,27 @@
 import uuid
 from django.db import models
 
+class Venue(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    city = models.CharField(max_length=255)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'content"."venue'
+        verbose_name = 'Lugar / Venue'
+        verbose_name_plural = 'Lugares / Venues'
+
+    def __str__(self):
+        return f"{self.name} ({self.city})"
+
+
 class Event(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    venue = models.ForeignKey(Venue, on_delete=models.CASCADE, db_column='venue_id')
     title = models.CharField(max_length=255)
     event_date = models.DateTimeField()
-    venue = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -54,4 +70,4 @@ class Reservation(models.Model):
         verbose_name_plural = 'Reservas'
 
     def __str__(self):
-        return f"{self.customer_name} ({self.quantity_bought} paxs)"
+        return f"{self.customer_name} ({self.quantity_bought})"
