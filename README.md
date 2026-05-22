@@ -130,3 +130,13 @@ Me enorgullece muchísimo haber logrado que el panel de administración funcione
 
 **Lo que menos me gustó y haría diferente con más tiempo:**
 La paginación actual de la API en el servicio toma los resultados y hace el rebanado (slicing) en memoria. Aunque funciona perfecto para 300 eventos, si tuviéramos 5 millones de eventos, consumiría demasiada RAM. Si tuviera más tiempo, implementaría la paginación a nivel de SQL directo en el Repositorio usando `LIMIT` y `OFFSET`. Además, la frustración por los errores constantes me demostró que cambiar una cosa pequeña (como un archivo wsgi) puede romper todo el flujo si no se tiene cuidado.
+
+## Defensa
+
+**Me toco el ticket A2. Filtro de eventos "esta semana"/ "proximos" con timezone**
+Modifique mi event_service.py para obtener los proximos eventos en la funcion get_upcoming_event donde dependiendo de si era week, weeken o month se filtraba lo que se debia de almacenar.
+Modifique mi events.py para crear la ruta donde se deberian de mostrar todos los eventos que cumplan los requisitos.
+Modifique mi event_repository que fue agregar el get time y modifique el get_all_events para que ahora si registre fechas.
+Tuve dificultades al momento de filtrar los eventos por fecha y eso fue una de las cosas que mas me tardo.
+Que me falto, que funcione correctamente, no pude conectar los tiempos para que compare correctamente.
+Como lo hubiera hecho, hubiera filtrado de un saque todos los eventos por la hora y fecha y de ahi buscar la manera de separarlos por periodos de tiempo ir de pequeño a grande, yo me complique y lo hice al revez.

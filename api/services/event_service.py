@@ -1,4 +1,6 @@
 import json
+import zoneinfo
+from datetime import datetime, timedelta
 from repositories.event_repository import EventRepositoryProtocol
 from cache.rate_limiter import CacheProtocol
 
@@ -7,13 +9,7 @@ class EventService:
         self.repository = repository
         self.cache = cache
 
-    def list_all_events(self, search_query: str = None, page: int = 1, page_size: int = 9):
-        cache_key = f"events:q={search_query}:p={page}:s={page_size}"
-        cached_data = self.cache.get_value(cache_key)
-        if cached_data:
-            return json.loads(cached_data)
-
-        raw_events = self.repository.get_all_events(search_query)
+    def _process_event_list(self, raw_events, page, page_size):
         if not raw_events:
             return {"count": 0, "page": page, "results": []}
 
@@ -37,14 +33,57 @@ class EventService:
         total_count = len(results)
         start = (page - 1) * page_size
         end = start + page_size
-        paginated_results = results[start:end]
-
-        final_response = {
+        
+        return {
             "count": total_count,
             "page": page,
-            "results": paginated_results
+            "results": results[start:end]
         }
+
+    def list_all_events(self, search_query: str = None, page: int = 1, page_size: int = 9):
+        cache_key = f"events:q={search_query}:p={page}:s={page_size}"
+        cached_data = self.cache.get_value(cache_key)
+        if cached_data: return json.loads(cached_data)
+
+        raw_events = self.repository.get_all_events(search_query)
+        final_response = self._process_event_list(raw_events, page, page_size)
         
+        self.cache.set_value(cache_key, json.dumps(final_response), 30)
+        return final_response
+
+    def get_upcoming_events(self, window: str, tz_name: str, page: int = 1, page_size: int = 9):
+        try:
+            user_tz = zoneinfo.ZoneInfo(tz_name)
+        except zoneinfo.ZoneInfoNotFoundError:
+            user_tz = zoneinfo.ZoneInfo("UTC")
+
+        now = datetime.now(user_tz)
+
+        if window == "weekend":
+            weekday = now.weekday() 
+            if weekday < 4 or (weekday == 4 and now.hour < 18):
+                days_to_friday = 4 - weekday
+                start_date = now.replace(hour=18, minute=0, second=0, microsecond=0) + timedelta(days=days_to_friday)
+            else:
+                start_date = now
+            days_to_monday = 7 - weekday
+            end_date = (now + timedelta(days=days_to_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif window == "week":
+            start_date = now
+            end_date = now + timedelta(days=7)
+        elif window == "month":
+            start_date = now
+            end_date = now + timedelta(days=30)
+        else:
+            return {"count": 0, "page": page, "results": []}
+
+        cache_key = f"events:upcoming:{window}:{tz_name}:{page}:{page_size}"
+        cached_data = self.cache.get_value(cache_key)
+        if cached_data: return json.loads(cached_data)
+
+        raw_events = self.repository.get_all_events(start_date=start_date, end_date=end_date)
+        final_response = self._process_event_list(raw_events, page, page_size)
+
         self.cache.set_value(cache_key, json.dumps(final_response), 30)
         return final_response
 

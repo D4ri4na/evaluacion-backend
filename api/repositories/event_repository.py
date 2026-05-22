@@ -1,31 +1,41 @@
 from typing import Protocol, List, Dict, Any, Optional
 from psycopg2.extras import RealDictCursor
 from database import get_db_connection
+from datetime import datetime
 
 class EventRepositoryProtocol(Protocol):
-    def get_all_events(self, search_query: Optional[str] = None) -> List[Dict[str, Any]]: ...
+    def get_all_events(self, search_query: Optional[str] = None, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]: ...
     def get_event_by_id(self, event_id: str) -> Optional[Dict[str, Any]]: ...
     def get_ticket_tiers_for_event(self, event_id: str) -> List[Dict[str, Any]]: ...
     def get_aggregated_tier_data(self, event_id: str) -> Optional[Dict[str, Any]]: ...
 
 class PostgresEventRepository:
-    def get_all_events(self, search_query: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_all_events(self, search_query: Optional[str] = None, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         conn = get_db_connection()
         if not conn: return []
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            params = []
+            where_clauses = []
+
+            if search_query:
+                where_clauses.append("(e.title ILIKE %s OR e.description ILIKE %s OR v.name ILIKE %s)")
+                term = f"%{search_query}%"
+                params.extend([term, term, term])
+
+            if start_date and end_date:
+                where_clauses.append("(e.event_date >= %s AND e.event_date < %s)")
+                params.extend([start_date, end_date])
+
             query = """
                 SELECT e.id, e.title, e.event_date AS starts_at, e.description,
                        v.name AS venue_name, v.city AS venue_city
                 FROM content.event e
                 INNER JOIN content.venue v ON e.venue_id = v.id
             """
-            params = []
             
-            if search_query:
-                query += " WHERE e.title ILIKE %s OR e.description ILIKE %s OR v.name ILIKE %s"
-                term = f"%{search_query}%"
-                params.extend([term, term, term])
+            if where_clauses:
+                query += " WHERE " + " AND ".join(where_clauses)
                 
             query += " ORDER BY e.event_date ASC;"
             

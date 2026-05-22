@@ -25,3 +25,4 @@ class PaginatedEventsSchema(BaseModel):
     count: int
     page: int
     results: List[EventDetailSchema]
+   
