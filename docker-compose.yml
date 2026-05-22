@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    container_name: postgres_db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: 123qwe
+      POSTGRES_DB: tickets_database
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema_design/tickets_database.ddl:/docker-entrypoint-initdb.d/init.sql
+
+  admin:
+    build: ./admin_panel
+    container_name: django_admin
+    restart: always
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./admin_panel:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=settings
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
