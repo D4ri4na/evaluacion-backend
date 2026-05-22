@@ -1,4 +1,3 @@
-```markdown
 # LOUD // Backend para Venta de Entradas
 
 ¡Hola! Este repositorio contiene el backend para la plataforma de eventos "LOUD". El objetivo de este proyecto fue crear un sistema rápido, ordenado y preparado para el mundo real, usando buenas prácticas de programación, caché para que cargue súper rápido y protección contra bots.
@@ -18,37 +17,6 @@ Todo el proyecto se levanta con un solo comando gracias a Docker. Usamos 5 pieza
 Elegimos trabajar con el dominio de **Venta de Entradas para Conciertos y Eventos**. 
 
 ## 🏛 Arquitectura C4
-
-```mermaid
-graph TD
-    User((Usuario Final))
-    Staff((Staff / Admin))
-
-    subgraph "Infraestructura Docker (LOUD)"
-        Nginx[Nginx Proxy Inverso]
-        
-        subgraph "Aplicación"
-            API[FastAPI Backend\n(Port 8000)]
-            Admin[Django Admin\n(Port 8000)]
-        end
-        
-        subgraph "Datos"
-            Redis[(Redis Cache)]
-            DB[(PostgreSQL)]
-        end
-    end
-
-    User -->|Consulta eventos| Nginx
-    Staff -->|Gestiona contenido| Nginx
-
-    Nginx -->|Rutas /api/| API
-    Nginx -->|Rutas /admin/| Admin
-
-    API -->|Valida Bots y Caché| Redis
-    API -->|Lee y Escribe| DB
-    Admin -->|Crea/Edita Eventos| DB
-
-```
 
 ### ¿Cómo organizamos la base de datos?
 
@@ -106,6 +74,52 @@ Escribimos tests con `pytest` para asegurarnos de que no rompemos nada por accid
 
 ---
 
+## 🚀 Cómo ejecutar el proyecto
+
+**1. Configurar variables de entorno:**
+```bash
+cp .env.example .env
+
+```
+
+**2. Levantar los contenedores:**
+
+```bash
+docker-compose up -d --build
+
+```
+
+*(Espera unos 30 segundos para que la base de datos inicie por completo).*
+
+**3. Poblar la base de datos (Seed):**
+
+```bash
+docker exec -it django_admin python manage.py seed_data
+
+```
+
+**4. Ejecutar pruebas automatizadas:**
+
+```bash
+docker exec -it fastapi_backend pytest tests/
+
+```
+
+**5. Enlaces de acceso rápido:**
+
+* 🎟️ **Frontend:** [http://localhost/](https://www.google.com/search?q=http://localhost/)
+* ⚙️ **Panel Admin:** [http://localhost/admin/](https://www.google.com/search?q=http://localhost/admin/) *(User: `admin` | Pass: `admin123`)*
+* 📡 **API Pública:** [http://localhost/api/v1/events/](https://www.google.com/search?q=http://localhost/api/v1/events/)
+* 📖 **Docs API (Swagger):** [http://localhost/api/openapi.json](https://www.google.com/search?q=http://localhost/api/openapi.json)
+
+**6. Detener el proyecto:**
+
+```bash
+docker-compose down
+
+```
+---
+
 ## 📝 Retrospectiva del Proyecto
 
 **De lo que me siento más orgullosa:**
@@ -113,7 +127,3 @@ Me enorgullece muchísimo haber logrado que el panel de administración funcione
 
 **De lo que me siento menos conforme:**
 Definitivamente, de la cantidad de errores que fui cometiendo a lo largo del desarrollo. Muchas veces lograba que una parte del código funcionara, y al intentar mejorar o tocar otra cosa, lo anterior dejaba de dar el resultado esperado. Es un proceso frustrante, pero entiendo que es parte del aprendizaje.
-
-```
-
-```
