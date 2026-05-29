@@ -3,6 +3,9 @@ import redis
 from typing import Protocol, Optional
 from fastapi import Request, HTTPException, Depends
 
+redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+redis_pool = redis.ConnectionPool.from_url(redis_url, decode_responses=True)
+
 class CacheProtocol(Protocol):
     def increment(self, key: str) -> int: ...
     def set_expire(self, key: str, seconds: int) -> None: ...
@@ -11,8 +14,7 @@ class CacheProtocol(Protocol):
 
 class RedisCache:
     def __init__(self):
-        redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-        self.client = redis.from_url(redis_url, decode_responses=True)
+        self.client = redis.Redis(connection_pool=redis_pool)
 
     def increment(self, key: str) -> int:
         try:

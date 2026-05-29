@@ -4,13 +4,13 @@ from database import get_db_connection
 from datetime import datetime
 
 class EventRepositoryProtocol(Protocol):
-    def get_all_events(self, search_query: Optional[str] = None, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]: ...
+    def get_all_events(self, search_query: Optional[str] = None, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, sort: str = "date") -> List[Dict[str, Any]]: ...
     def get_event_by_id(self, event_id: str) -> Optional[Dict[str, Any]]: ...
     def get_ticket_tiers_for_event(self, event_id: str) -> List[Dict[str, Any]]: ...
     def get_aggregated_tier_data(self, event_id: str) -> Optional[Dict[str, Any]]: ...
 
 class PostgresEventRepository:
-    def get_all_events(self, search_query: Optional[str] = None, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    def get_all_events(self, search_query: Optional[str] = None, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, sort: str = "date") -> List[Dict[str, Any]]:
         conn = get_db_connection()
         if not conn: return []
         try:
@@ -37,7 +37,12 @@ class PostgresEventRepository:
             if where_clauses:
                 query += " WHERE " + " AND ".join(where_clauses)
                 
-            query += " ORDER BY e.event_date ASC;"
+            if sort == "price":
+                query += " ORDER BY (SELECT COALESCE(MIN(price), 0) FROM content.ticket_tier WHERE event_id = e.id) ASC;"
+            elif sort == "capacity":
+                query += " ORDER BY (SELECT COALESCE(SUM(available_quantity), 0) FROM content.ticket_tier WHERE event_id = e.id) DESC;"
+            else:
+                query += " ORDER BY e.event_date ASC;"
             
             cur.execute(query, params)
             events = cur.fetchall()

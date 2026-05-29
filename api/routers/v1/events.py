@@ -20,11 +20,36 @@ def get_event_service(
 @router.get("/events/", response_model=PaginatedEventsSchema, dependencies=[Depends(rate_limiter)])
 def list_events(
     q: Optional[str] = None,
+    sort: Optional[str] = "date",
     page: int = 1, 
     page_size: int = 9, 
     service: EventService = Depends(get_event_service)
 ):
-    return service.list_all_events(search_query=q, page=page, page_size=page_size)
+    return service.list_all_events(search_query=q, sort=sort, page=page, page_size=page_size)
+
+@router.get("/events/search/", response_model=PaginatedEventsSchema, dependencies=[Depends(rate_limiter)])
+def search_events(
+    query: str, 
+    sort: Optional[str] = "date",
+    page: int = 1, 
+    page_size: int = 9, 
+    service: EventService = Depends(get_event_service)
+):
+    return service.list_all_events(search_query=query, sort=sort, page=page, page_size=page_size)
+
+@router.get("/events/upcoming", response_model=PaginatedEventsSchema, dependencies=[Depends(rate_limiter)])
+def upcoming_events(
+    window: str, 
+    tz: str = "UTC", 
+    sort: Optional[str] = "date",
+    page: int = 1, 
+    page_size: int = 9, 
+    service: EventService = Depends(get_event_service)
+):
+    if window not in ["weekend", "week", "month"]:
+        raise HTTPException(status_code=400, detail="Window must be 'weekend', 'week', or 'month'")
+    
+    return service.get_upcoming_events(window=window, tz_name=tz, sort=sort, page=page, page_size=page_size)
 
 @router.get("/events/{event_id}", response_model=EventDetailSchema, dependencies=[Depends(rate_limiter)])
 def get_event_detail(
@@ -35,26 +60,3 @@ def get_event_detail(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     return event
-
-@router.get("/events/search/", response_model=PaginatedEventsSchema, dependencies=[Depends(rate_limiter)])
-def search_events(
-    query: str, 
-    page: int = 1, 
-    page_size: int = 9, 
-    service: EventService = Depends(get_event_service)
-):
-    return service.list_all_events(search_query=query, page=page, page_size=page_size)
-
-@router.get("/events/upcoming", response_model=PaginatedEventsSchema, dependencies=[Depends(rate_limiter)])
-def upcoming_events(
-    window: str, 
-    tz: str = "UTC", 
-    page: int = 1, 
-    page_size: int = 9, 
-    service: EventService = Depends(get_event_service)
-):
-    if window not in ["weekend", "week", "month"]:
-        raise HTTPException(status_code=400, detail="Window must be 'weekend', 'week', or 'month'")
-    
-    return service.get_upcoming_events(window=window, tz_name=tz, page=page, page_size=page_size)
-

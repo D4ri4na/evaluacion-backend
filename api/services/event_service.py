@@ -40,18 +40,18 @@ class EventService:
             "results": results[start:end]
         }
 
-    def list_all_events(self, search_query: str = None, page: int = 1, page_size: int = 9):
-        cache_key = f"events:q={search_query}:p={page}:s={page_size}"
+    def list_all_events(self, search_query: str = None, sort: str = "date", page: int = 1, page_size: int = 9):
+        cache_key = f"events:q={search_query}:sort={sort}:p={page}:s={page_size}"
         cached_data = self.cache.get_value(cache_key)
         if cached_data: return json.loads(cached_data)
 
-        raw_events = self.repository.get_all_events(search_query)
+        raw_events = self.repository.get_all_events(search_query=search_query, sort=sort)
         final_response = self._process_event_list(raw_events, page, page_size)
         
         self.cache.set_value(cache_key, json.dumps(final_response), 30)
         return final_response
 
-    def get_upcoming_events(self, window: str, tz_name: str, page: int = 1, page_size: int = 9):
+    def get_upcoming_events(self, window: str, tz_name: str, sort: str = "date", page: int = 1, page_size: int = 9):
         try:
             user_tz = zoneinfo.ZoneInfo(tz_name)
         except zoneinfo.ZoneInfoNotFoundError:
@@ -61,13 +61,19 @@ class EventService:
 
         if window == "weekend":
             weekday = now.weekday() 
-            if weekday < 4 or (weekday == 4 and now.hour < 18):
-                days_to_friday = 4 - weekday
-                start_date = now.replace(hour=18, minute=0, second=0, microsecond=0) + timedelta(days=days_to_friday)
+            if weekday == 4 and now.hour >= 18:
+                start_date = now.replace(hour=18, minute=0, second=0, microsecond=0)
+            elif weekday in (5, 6):
+                start_date = (now - timedelta(days=weekday-4)).replace(hour=18, minute=0, second=0, microsecond=0)
+            elif weekday == 0 and now.hour < 4:
+                start_date = (now - timedelta(days=3)).replace(hour=18, minute=0, second=0, microsecond=0)
             else:
-                start_date = now
-            days_to_monday = 7 - weekday
-            end_date = (now + timedelta(days=days_to_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+                days_ahead = 4 - weekday
+                if days_ahead < 0: days_ahead += 7
+                start_date = (now + timedelta(days=days_ahead)).replace(hour=18, minute=0, second=0, microsecond=0)
+            
+            end_date = (start_date + timedelta(days=3)).replace(hour=4, minute=0, second=0, microsecond=0)
+
         elif window == "week":
             start_date = now
             end_date = now + timedelta(days=7)
@@ -77,11 +83,11 @@ class EventService:
         else:
             return {"count": 0, "page": page, "results": []}
 
-        cache_key = f"events:upcoming:{window}:{tz_name}:{page}:{page_size}"
+        cache_key = f"events:upcoming:{window}:{tz_name}:sort={sort}:{page}:{page_size}"
         cached_data = self.cache.get_value(cache_key)
         if cached_data: return json.loads(cached_data)
 
-        raw_events = self.repository.get_all_events(start_date=start_date, end_date=end_date)
+        raw_events = self.repository.get_all_events(start_date=start_date, end_date=end_date, sort=sort)
         final_response = self._process_event_list(raw_events, page, page_size)
 
         self.cache.set_value(cache_key, json.dumps(final_response), 30)
